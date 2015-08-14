@@ -9,15 +9,17 @@ import (
 )
 
 type HardToSort struct {
-	HiddenValue int
+	// Simulate a hard-to-calculate value by hiding access to this value.
+	hiddenValue int
 }
 
 var count int
 
+// Getting the True Value takes some time.
 func (h HardToSort) TrueValue() int {
 	count++
 	time.Sleep(200 * time.Millisecond)
-	return h.HiddenValue
+	return h.hiddenValue
 }
 
 func ExampleHardToSortSlice() []HardToSort {
@@ -74,6 +76,6 @@ func BenchmarkSortFunc(factory func() sort.Interface) {
 
 func main() {
 	BenchmarkSortFunc(func() sort.Interface { return ByHiddenValue(ExampleHardToSortSlice()) })
-	BenchmarkSortFunc(func() sort.Interface { return keysort.By(ByHiddenValue(ExampleHardToSortSlice())) })
-	BenchmarkSortFunc(func() sort.Interface { return keysort.PrimedBy(ByHiddenValue(ExampleHardToSortSlice()), 0) })
+	BenchmarkSortFunc(func() sort.Interface { return keysort.Keysort(ByHiddenValue(ExampleHardToSortSlice())) })
+	BenchmarkSortFunc(func() sort.Interface { return keysort.PrimedKeysort(ByHiddenValue(ExampleHardToSortSlice()), 0) })
 }

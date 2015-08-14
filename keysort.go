@@ -16,7 +16,7 @@ type Interface interface {
 }
 
 // A KeySortable wraps an Interface, and implements sort.Interface.
-// This is meant to be created by calling By(Interface)
+// This is meant to be created by calling Keysort(Interface)
 type keySortable struct {
 	// wrapped is the container that must be sorted.
 	wrapped Interface
@@ -32,7 +32,7 @@ type keySortable struct {
 
 // Given an instance of a keysort.Interface, create a keySortable struct that
 // implements sort.Interface.
-func By(wrapped Interface) (ks keySortable) {
+func Keysort(wrapped Interface) (ks keySortable) {
 	wrappedLen := wrapped.Len()
 	swaps := make([]int, wrappedLen)
 	for i := 0; i < wrapped.Len(); i++ {
@@ -49,8 +49,8 @@ func By(wrapped Interface) (ks keySortable) {
 // Given an instance of a keysort.Interface, create a keySortable struct that
 // implements sort.Interface, and Prime() it.
 // parallelism is passed to Prime()
-func PrimedBy(wrapped Interface, parallelism int) (ks keySortable) {
-	ks = By(wrapped)
+func PrimedKeysort(wrapped Interface, parallelism int) (ks keySortable) {
+	ks = Keysort(wrapped)
 	ks.prime(parallelism)
 	return
 }
