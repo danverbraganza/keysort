@@ -70,6 +70,5 @@ Warning: Missing functionality
 The following functionality is still being implemented:
 
 * Any errors returned by Key() are ignored.
-* The `parallelism` parameter passed to PrimedKeysort() is ignored, and instead Prime() simultaneously runs as many goroutines as possible. 
 
 
