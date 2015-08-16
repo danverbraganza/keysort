@@ -3,6 +3,7 @@
 package keysort
 
 import (
+	"runtime"
 	"sync"
 )
 
@@ -100,26 +101,43 @@ func (ks keySortable) Swap(i, j int) {
 }
 
 // Prime precomputes each wrapped.Key() in goroutines.
-// parallelism is how many goroutines to run at a time. If parallelism is negative, an unlimited number of goroutines are used. If 0, an GOMAXPROC goroutines are used.
-// INCOMPLETE: ignores parallelism and always runs max goroutines.
-// INCOMPLETE: Does not aggregate any errors that Key might return.
+// parallelism is how many goroutines to run at a time. If parallelism is less than one, an runtime.GOMAXPROCS goroutines are used.
 func (ks keySortable) prime(parallelism int) error {
-	// TODO(danver): implement parallelism-aware function.
-	wrappedLen := ks.Len()
+	var primingErr error
+	if parallelism < 1 {
+		parallelism = runtime.GOMAXPROCS(-1)
+	}
+	// Keep this channel buffered, so that we don't leave zombie
+	// routines when leaving early on the first error (and another
+	// error is coming.) Only the first error is returned.
+	errCh := make(chan error, parallelism)
+	values := make(chan int)
+	wg := &sync.WaitGroup{}
 
-	responses := make(chan interface{}, wrappedLen)
-
-	for i := 0; i < wrappedLen; i++ {
-		my_i := i
+	wg.Add(parallelism)
+	for i := 0; i < parallelism; i++ {
 		go func() {
-			ks.Key(my_i)
-			responses <- nil
+			defer wg.Done()
+			for val := range values {
+				if _, err := ks.Key(val); err != nil {
+					errCh <- err
+					return
+				}
+			}
 		}()
 	}
 
-	for i := 0; i < wrappedLen; i++ {
-		<- responses
+L:
+	for i := 0; i < ks.Len(); i++ {
+		select {
+		case values <- i:
+		case err := <-errCh:
+			primingErr = err
+			break L
+		}
 	}
+	close(values)
 
-	return nil
+	wg.Wait()
+	return primingErr
 }
