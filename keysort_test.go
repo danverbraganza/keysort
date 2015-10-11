@@ -1,6 +1,7 @@
 package keysort
 
 import (
+	"fmt"
 	"math/rand"
 	"sort"
 	"testing"
@@ -27,8 +28,8 @@ func GenSpecimen(num int) []ExampleToSort {
 		default:
 			// Come up with a random example.
 			example = ExampleToSort{
-				NotKey: rand.Intn(num),
-				IntKey: rand.Intn(num),
+				NotKey:    rand.Intn(num),
+				IntKey:    rand.Intn(num),
 				StringKey: string(byte(rand.Intn(num)))}
 		}
 		result[i] = example
@@ -69,7 +70,6 @@ func TestPrimedKeysortByIntKey(t *testing.T) {
 	}
 }
 
-
 func TestKeysortByStringKey(t *testing.T) {
 	specimen := ByStringKey{GenSpecimen(SPECIMEN_SIZE)}
 
@@ -80,7 +80,6 @@ func TestKeysortByStringKey(t *testing.T) {
 	}
 }
 
-
 func TestPrimedKeysortByStringKey(t *testing.T) {
 	specimen := ByStringKey{GenSpecimen(SPECIMEN_SIZE)}
 
@@ -89,6 +88,35 @@ func TestPrimedKeysortByStringKey(t *testing.T) {
 	if !sort.IsSorted(specimen) {
 		t.Errorf("PrimedKeysort failed for ByStringKey")
 	}
+}
+
+func TestPrimedKeysortByStringKeyErrors(t *testing.T) {
+	specimen := ByStringKeyErrors{GenSpecimen(SPECIMEN_SIZE)}
+
+	ks := PrimedKeysort(specimen, -1)
+
+	if ks.Errors() == nil {
+		t.Errorf("Errors were expected.")
+	} else if len(ks.Errors().(PrimingError).Errors) != 1 {
+		t.Errorf("Expected exactly 1 error.")
+	}
+}
+
+func TestPrimedKeysortRetry(t *testing.T) {
+	innerSpecimen := GenSpecimen(SPECIMEN_SIZE)
+	specimen := ByStringKeyErrors{innerSpecimen}
+
+	// Fail one record
+	ks := PrimedKeysort(specimen, -1)
+
+	specimen.SpecimenSliceSorter[1].StringKey = "aab"
+
+	ks.RetryFailed(1)
+
+	if ks.Errors() != nil {
+		t.Errorf("No more errors expected.")
+	}
+
 }
 
 type SpecimenSliceSorter []ExampleToSort
@@ -105,7 +133,7 @@ func (s SpecimenSliceSorter) At(i int) ExampleToSort {
 	return s[i]
 }
 
-type ByIntKey struct {SpecimenSliceSorter}
+type ByIntKey struct{ SpecimenSliceSorter }
 
 func (s ByIntKey) Less(i, j int) bool {
 	return s.At(i).IntKey < s.At(j).IntKey
@@ -119,7 +147,7 @@ func (s ByIntKey) Key(i int) (interface{}, error) {
 	return s.At(i).IntKey, nil
 }
 
-type ByStringKey struct {SpecimenSliceSorter}
+type ByStringKey struct{ SpecimenSliceSorter }
 
 func (s ByStringKey) Less(i, j int) bool {
 	return s.At(i).StringKey < s.At(j).StringKey
@@ -145,4 +173,19 @@ func (s ByIntKeyCounted) LessVal(i, j interface{}) bool {
 func (s ByIntKeyCounted) Key(i int) (interface{}, error) {
 	s.count++
 	return s.At(i).IntKey, nil
+}
+
+// Only implements keysort.Interface. Returns an error for some strings.
+type ByStringKeyErrors struct{ SpecimenSliceSorter }
+
+func (s ByStringKeyErrors) LessVal(i, j interface{}) bool {
+	return i.(string) < j.(string)
+}
+
+func (s ByStringKeyErrors) Key(i int) (interface{}, error) {
+
+	if s.At(i).StringKey == "aaa" {
+		return nil, fmt.Errorf("Blah")
+	}
+	return s.At(i).StringKey, nil
 }

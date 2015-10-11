@@ -32,7 +32,7 @@ type keySortable struct {
 	// errors is a map of original indices to error objects encountered by this object.
 	errors map[int]error
 	// lock coordinates access to memo and errors.
-	lock sync.Mutex
+	sync.Mutex
 }
 
 // Given an instance of a keysort.Interface, create a keySortable struct that
@@ -80,18 +80,18 @@ func (ks keySortable) Less(i, j int) bool {
 func (ks keySortable) Key(i int) interface{} {
 	// Look up the original index of what is currently at i
 	originalIndex := ks.swaps[i]
-	ks.lock.Lock()
-	defer ks.lock.Unlock()
+	ks.Lock()
+	defer ks.Unlock()
 	var err error = nil
 
 	if _, ok := ks.memo[originalIndex]; !ok {
 		// Release lock while calculating value of Key().
-		ks.lock.Unlock()
+		ks.Unlock()
 
 		var value interface{}
 		value, err = ks.wrapped.Key(originalIndex)
 
-		ks.lock.Lock()
+		ks.Lock()
 		// Whatever happened, write the value down.
 		ks.memo[originalIndex] = value
 
@@ -121,7 +121,7 @@ func (ks keySortable) Swap(i, j int) {
 
 // memoize precomputes each wrapped.Key() in goroutines.
 // parallelism is how many goroutines to run at a time. If parallelism is less than one, an runtime.GOMAXPROCS goroutines are used.
-func (ks keySortable) memoize(parallelism int, genIndexes func(chan int)) {
+func (ks keySortable) memoize(parallelism int, genIndexes func(chan<- int)) {
 
 	// Channel on which we send indices to the key functions.
 	iChan := make(chan int)
@@ -144,15 +144,27 @@ func (ks keySortable) memoize(parallelism int, genIndexes func(chan int)) {
 	wg.Wait()
 }
 
-// RetryAll retries all the indexes that threw an error before
+// ClearErrors clears all the errors created on this keysort.
+func (ks keySortable) ClearErrors() {
+	ks.Lock()
+	defer ks.Unlock()
+	for k := range ks.errors {
+		delete(ks.errors, k)
+	}
+
+}
+
+// RetryFailed retries all the indexes that threw an error before
 // parallelism is passed to memoize.
-func (ks keySortable) RetryAll(parallelism int) {
+// All past errors are cleared on a retry.
+func (ks keySortable) RetryFailed(parallelism int) {
+	ks.ClearErrors()
 	ks.memoize(parallelism, ks.erroredIndexes)
 }
 
 // allIndexes generates every possible index on the channel passed in as an
 // argument, and then closes the channel.
-func (ks keySortable) allIndexes(iChan chan int) {
+func (ks keySortable) allIndexes(iChan chan<- int) {
 	for i := 0; i < ks.Len(); i++ {
 		iChan <- i
 	}
@@ -161,13 +173,13 @@ func (ks keySortable) allIndexes(iChan chan int) {
 
 // erroredIndexes generates only those indexes that have errored on the channel
 // passed in as an argument, and then closes the channel.
-func (ks keySortable) erroredIndexes(iChan chan int) {
+func (ks keySortable) erroredIndexes(iChan chan<- int) {
 	erroredIndices := []int{}
-	ks.lock.Lock()
+	ks.Lock()
 	for i := range ks.errors {
 		erroredIndices = append(erroredIndices, i)
 	}
-	ks.lock.Unlock()
+	ks.Unlock()
 
 	for i := range erroredIndices {
 		iChan <- i
