@@ -64,11 +64,12 @@ To sort this, Go's sort.Interface requires that you implement `Len()`, `Swap()` 
 
 Each time the sorting algorithm must compare two images, it needs to compute the luminescence twice. Clearly some caching can be used to improve performance. **keysort** provides a way to get this caching without duplicating a lot of code.
 
-Warning: Missing functionality
-------------------------------
+A note about Error Handling
+---------------------------
 
-The following functionality is still being implemented:
+Whenever you run a `PrimedKeySort`, that will automatically attempt to memoize the calls to Key in parallel. If this step throws any errors, you may retrieve them by calling `Errors()` on the `keysortable` that was returned.
 
-* Any errors returned by Key() are ignored.
+If you're sure that the errors were transient, you can retry all the failed key values with `RetryFailed()`.
+
 
 
